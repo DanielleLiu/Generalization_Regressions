@@ -1,5 +1,5 @@
 % This is a script to get the confidance interval of the step-by-step
-% weights. The regressors are the same for each iteration and group 
+% weights. The regressors are the same for each iteration and group
 
 %%
 % % upload your path 
