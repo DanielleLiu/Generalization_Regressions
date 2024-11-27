@@ -1,6 +1,8 @@
+%Deprecated. New implementations in labTools/fun/SeparateConditions.m
 %Chagingparams, create new conditions in 1 trial, currently only need to
 %use it fors the first block for preintervention trials.
 function in= AddingConditions(in, oldConditionName, newConditions, splitBeginOrEnd, newDecription)
+    warning('This function is deprecated. Update your code to call newer implementations SeparateConditions.m in in labTools')
     if nargin < 4 || isempty(splitBeginOrEnd)
         splitBeginOrEnd = true; %default split beginning
     end
