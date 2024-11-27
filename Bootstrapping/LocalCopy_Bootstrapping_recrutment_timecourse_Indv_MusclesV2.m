@@ -20,7 +20,7 @@ groupID ={'AUF'};
 EMGAllGroups=[];
 
 if strcmp(groupID,'AUF')
-    [groupDataPath, ~, ~, ~, visitnum] = setupDataPath('ParamsForGroupPlot', 'V02', '', '');
+    [groupDataPath, ~, ~, ~, visitnum] = setupDataPath('ParamsForGroupPlot', 'V04', '', '');
     rng(visitnum) %set seed for reproducibility for each session and to also have different samples per session.
     cd(groupDataPath)
     load('MusclesToRemove.mat')
@@ -145,7 +145,7 @@ end
 
 Cmuscles_unit=[];
 bootstrap=1; %Do you want to run the loop (1 yes 0 No)
-replacement=1; %do you want to do it with replacement of the data (y) (1 yes 0 No, if no will only loop through once.)
+replacement=0; %do you want to do it with replacement of the data (y) (1 yes 0 No, if no will only loop through once.)
 regre_Const=1; % To keep the regressors constants for both groups
 
 if bootstrap
@@ -284,7 +284,7 @@ if bootstrap
             yhat_context=[yhat_context; YhatContextCurr];
             yhat_reactive=[yhat_reactive; YhatReactiveCurr];
             
-            r = abs(nanmin(YhatReactiveCurr)); %reactive min per stride (all 12 subintervals per stride should be shifted by the same value to preserve the shape of the muscle activity)
+            r = abs(nanmin(YhatReactiveCurr)); %reactive min
             c = abs(nanmin(YhatContextCurr)); %contextual min
             
             reconstruction_indv_shifted =[reconstruction_indv_shifted ;  Yhat_TR(:,:,i,iteIdx)+r+c]; % Concatenating the data reconstructed
@@ -351,32 +351,45 @@ end
 figure(); plot(R2Example); title('R^2 of the last iteration');
 
 %% Plot regressors checkerboards
-strideToPlot = 931:935; %[40 890 440]
+strideToPlot = 931:935; %[40 890 440], only make sense to check post-adapt bc baseline removal removed OGBase from the whole exp which is only appropriate for OGPost.
 muscleOrder={'TA', 'PER', 'SOL', 'LG', 'MG', 'BF', 'SEMB', 'SEMT', 'VM', 'VL', 'RF', 'HIP','TFL', 'GLU'};
 ytl=([strcat('f',muscleOrder) strcat('s',muscleOrder)]);  %List of muscle 
 ytl(end:-1:1) = ytl(:);
 yt=1:length(ytl);
 
 figure
-subplot(1,4,1)
+subplot(1,5,1)
 imagesc((reshape(Cmuscles_unit(:,1),12,28)'))
 title('Reactive')
 fs = 10;
 set(gca,'XTick',[],'YTick',yt,'YTickLabel',ytl,'FontSize',fs)
 set(gca,'CLim',[-1 1]*1,'FontSize',fs); %making sure that the first plot color scheme goes [-1 1] and making the name of the labels larger
 
-subplot(1,4,2)
+subplot(1,5,2)
 imagesc((reshape(Cmuscles_unit(:,2),12,28)'))
 title('Contextual')
 
-subplot(1,4,3)
+subplot(1,5,3)
 imagesc(squeeze(nanmean(Yhat_TR(:,strideToPlot,:,iteIdx),2))') %avg over strides
 title('Yhat')
 
-subplot(1,4,4)
+subplot(1,5,4)
 imagesc(squeeze(nanmean(Ymuscles_TR(strideToPlot,:,:),1))') %avg overstrides
 title('Y')
 
+y_original = reshape(Ymuscles_TR,size(Ymuscles_TR,1),[]) + bias;
+y_original = reshape(y_original,size(y_original,1),12,28);
+subplot(1,5,5)
+imagesc(squeeze(nanmean(y_original(strideToPlot,:,:),1))') %avg overstrides
+title('YOriginal')
+
+% %get Y before removing bias.
+% bias=nanmean(Y_TR(1:40,:,:)) ; %estimating the gorup baseline, assuming first 40 strides are TMBase.
+% Y_TR=Y_TR-bias; %removing the bias from the data
+% 
+% %reorganize the data to be separatend by muscle
+% Ymuscles_TR=reshape(Y_TR,[],12,28);
+        
 color4checkerboards
 
 
@@ -385,7 +398,7 @@ fs=14; %font size
 colormap(flipud(map)) %changing the color map to the one tha defined about, we flipup the matrix bc the code does L-R and we want R-L
 % c=flipud('gray');
 % colormap(flipud(gray))
-set(gcf,'color','w'); %setting the background white
+% set(gcf,'color','w'); %setting the background white
 set(gca,'YTickLabels',{},'CLim',[-1 1]*1,'FontSize',fs);
 set(findall(gcf,'-property','FontSize'),'FontSize',fs)
 colorbar %Showing the colormap bar
@@ -425,7 +438,7 @@ postBootstrapData.stateLabels = titles;
 %% plot VAF from bootstrap
 saveFigPath = 'X:\Shuqi\NirsAutomaticityStudy\Data\GroupResults\Group22Sub\EMG\V04\Bootstrp2000_';
 subIds = sprintfc('%d',1:n);
-for shifted = 1
+for shifted = 0:1
     for relativeToMean = 0:1
         eval(['dataToPlot = R2.shifted' num2str(shifted) '.relativeToMean' num2str(relativeToMean) ';'])
         PlotHelper.barPlotWithIndiv(dataToPlot,subIds,{'Total','Context','Reactive'},'VAF',['OGPost VAF Shifted', num2str(shifted) ' RelativeToMean' num2str(relativeToMean)], ...

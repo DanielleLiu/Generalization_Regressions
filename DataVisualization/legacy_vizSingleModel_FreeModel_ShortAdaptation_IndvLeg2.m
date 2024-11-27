@@ -79,16 +79,17 @@ elseif lower==3 %removing the mean on the data. similar analysis as PCA
     model{1}.Data=Y;
     
 else
+    %commented out Shuqi 07/19/2023 for nan support
     C=model{1}.C; %getting C from the struture
-    Cinv=pinv(C)'; %pseudoinverse of the C (C is not a squared matrix)
-%     X = Y'*Cinv(:,1:3); %x= y/C getting the dynamics of the hidden states (we are using least-sqaures seee: Penrose, Roger (1956))
-    X = Y'*Cinv;
-%     X(:,1)=ones(length(Y),1);
-%     Y2= Cs(:,1:3) * X' ; % Data reconstructed with the perdetermine dynamics
-    Y2= C * X' ;
+%     Cinv=pinv(C)'; %pseudoinverse of the C (C is not a squared matrix)
+% %     X = Y'*Cinv(:,1:3); %x= y/C getting the dynamics of the hidden states (we are using least-sqaures seee: Penrose, Roger (1956))
+%     X = Y'*Cinv;
+% %     X(:,1)=ones(length(Y),1);
+% %     Y2= Cs(:,1:3) * X' ; % Data reconstructed with the perdetermine dynamics
+%     Y2= C * X' ;
     model{1}.Data=Y;
-    model{1}.States=X;
-%     model{1}.Out=Y2;
+%     model{1}.States=X;
+% %     model{1}.Out=Y2;
     model{1}.Res=Y-singleModel.Out;
 end
     
@@ -119,9 +120,10 @@ end
 
 yt=1:length(ytl);
 fs=7;
-
+rotMed = 'none'; %not rotating the data.
 CD=[model{1}.C model{1}.D];
-XU=[X';U];
+% XU=[X';U]; %Shuqi 07/19/2023: temp comment out since it's not used, for
+% nan support
 
 
 if strcmp(rotMed,'none')
@@ -220,7 +222,10 @@ if nargin<2
 
 else %IF DATA PRESENT:
 N=size(Y,2);
-viewPoints=[3,35,44,470,483,675,682]; %PATR - PATS 
+% Arg change for what steps to view.
+viewPoints=[35 41 45 330]%[35,45,920,935,1375]; %early base, late base, earlyAda, lateAda, earlyPost1, earlyPost2 %[3,35,44,470,483,675,682]; %PATR - PATS % strides=[-40 440 200 200]; %Dulce protocol
+% cond={'TM base','Adaptation','Post 1', 'Post 2'}; %Conditions for this group
+% strides=[-40 890 440 140]; %AUF protocol
 % viewPoints=[3,437,443,635]; %PATR - PATS 
 binw=4; %Plus minus 2
 viewPoints(viewPoints>N-binw/2)=[];

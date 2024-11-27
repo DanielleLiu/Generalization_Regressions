@@ -164,9 +164,6 @@ if bootstrap
     Cmuscles_inv=nan(12,2,28,n);
     Yhat=nan(12,totalStrides,28,n);
     temp4=nan(totalStrides,2,28,n);
-    
-    Xhat_TR = []; Yhat_TR=[]; dynamics_TR = []; YhatReactive_TR = []; YhatContext_TR = []; Ymuscles_TR_all = [];
-    Ymuscles_TR_shifted = []; Yhat_TR_shifted = []; YhatReactive_TR_shifted = []; YhatContext_TR_shifted = [];
     R2 = struct();
     for iteIdx=1:n %loop for number of iterations
         
@@ -261,8 +258,7 @@ if bootstrap
         data=[];
         C_indv=[];
         X_indv=[];
-        reconstruction_indv_shifted=[];yhat_context_shifted=[]; yhat_reactive_shifted=[]; data_shifted=[];
-        yhat_reactive=[];yhat_context=[];
+        
         for i=1:size(Ymuscles_TR,3) %loop for individual muscle fit
             
            % Getting the inverse of the regressors
@@ -276,25 +272,23 @@ if bootstrap
 
              %%% TR
             Xhat_TR(:,:,i,iteIdx) =Cmuscles_inv'*Ymuscles_TR(:,:,i)'; %x= y/C
-            Yhat_TR(:,:,i,iteIdx) =  unit* Xhat_TR(:,:,i,iteIdx) ; %Estimated Y with the constants, 12 x stride x 28 x iterations
+            Yhat_TR(:,:,i,iteIdx)=  unit* Xhat_TR(:,:,i,iteIdx) ; %Estimated Y with the constants, 12 x stride x 28 x iterations
             dynamics_TR(:,:,i,iteIdx)=Xhat_TR(:,:,i,iteIdx)'; %step-by-step dynamics, e.g., weights. 2 x #strides x 28 x iterations
             %unit is reactive first then context.
-            YhatReactiveCurr = unit(:,1)* Xhat_TR(1,:,i,iteIdx) ; %Estimated Y reactive, 1 (reactive weight) x stride x 28 (muscles) x iterations
-            YhatContextCurr =  unit(:,2)* Xhat_TR(2,:,i,iteIdx) ; %Estimated Y context, 1 (context weight) x stride x 28 x iterations
-            yhat_context=[yhat_context; YhatContextCurr];
-            yhat_reactive=[yhat_reactive; YhatReactiveCurr];
+            YhatReactive_TR(:,:,i,iteIdx) = unit(:,1)* Xhat_TR(1,:,i,iteIdx) ; %Estimated Y reactive, 1 (reactive weight) x stride x 28 (muscles) x iterations
+            YhatContext_TR(:,:,i,iteIdx) =  unit(:,2)* Xhat_TR(2,:,i,iteIdx) ; %Estimated Y context, 1 (context weight) x stride x 28 x iterations
+             
+            r = abs(nanmin(YhatReactive_TR(:,:,i,iteIdx))); %reactive min
+            c = abs(nanmin(YhatContext_TR(:,:,i,iteIdx))); %contextual min
             
-            r = abs(nanmin(YhatReactiveCurr)); %reactive min per stride (all 12 subintervals per stride should be shifted by the same value to preserve the shape of the muscle activity)
-            c = abs(nanmin(YhatContextCurr)); %contextual min
-            
-            reconstruction_indv_shifted =[reconstruction_indv_shifted ;  Yhat_TR(:,:,i,iteIdx)+r+c]; % Concatenating the data reconstructed
-            yhat_context_shifted=[yhat_context_shifted; YhatContextCurr+c];
-            yhat_reactive_shifted=[yhat_reactive_shifted; YhatReactiveCurr+r];
-            data_shifted =[ data_shifted ; Ymuscles_TR(:,:,i)'+c+r];  % Concatenating the data
-%             Ymuscles_TR_shifted(:,:,i,iteIdx) = Ymuscles_TR(:,:,i)' + c +r; %12 x stride x 28
-%             Yhat_TR_shifted(:,:,i,iteIdx)=  Yhat_TR(:,:,i,iteIdx) + c +r ; %Estimated Y with the constants, 12 x stride x 28 x iterations
-%             YhatReactive_TR_shifted(:,:,i,iteIdx) = YhatReactive_TR(:,:,i,iteIdx) + r; %Estimated Y reactive, 1 (reactive weight) x stride x 28 (muscles) x iterations
-%             YhatContext_TR_shifted(:,:,i,iteIdx) =  YhatContext_TR(:,:,i,iteIdx) + c; %Estimated Y context, 1 (context weight) x stride x 28 x iterations
+%             reconstruction_indv_shifted =[reconstruction_indv_shifted ; Yhat_TR(:,:,i,iterationsIdx)+c+r]; % Concatenating the data reconstructed
+%             yhat_context_shifted=[yhat_context_shifted; YhatContext_TR(:,:,i,iterationsIdx)+c];
+%             yhat_reactive_shifted=[yhat_reactive_shifted; YhatReactive_TR(:,:,i,iterationsIdx)+r];
+%             data_shifted =[ data_shifted ; Ymuscles_TR(:,:,i)+c+r];  % Concatenating the data
+            Ymuscles_TR_shifted(:,:,i) = Ymuscles_TR(:,:,i)' + c +r; %12 x stride x 28
+            Yhat_TR_shifted(:,:,i,iteIdx)=  Yhat_TR(:,:,i,iteIdx) + c +r ; %Estimated Y with the constants, 12 x stride x 28 x iterations
+            YhatReactive_TR_shifted(:,:,i,iteIdx) = YhatReactive_TR(:,:,i,iteIdx) + r; %Estimated Y reactive, 1 (reactive weight) x stride x 28 (muscles) x iterations
+            YhatContext_TR_shifted(:,:,i,iteIdx) =  YhatContext_TR(:,:,i,iteIdx) + c; %Estimated Y context, 1 (context weight) x stride x 28 x iterations
             
             if any(contains(groupID,{'BATS'}))
                 %%% TS
@@ -303,32 +297,27 @@ if bootstrap
                 dynamics_TS(:,:,i,iteIdx)=Xhat_TS(:,:,i,iteIdx)'; %step-by-step dynamics
             end 
         end
-        data = reshape(nanmean(Ymuscles_TR(post1Index,:,:),1),[],1);
-        yhat = reshape(nanmean(Yhat_TR(:,post1Index,:,iteIdx),2),[],1);
-        yhat_context = nanmean(yhat_context(:,post1Index),2);
-        yhat_reactive = nanmean(yhat_reactive(:,post1Index),2);
         
-        R2.shifted0.relativeToMean0(1,iteIdx) = my_Rsquared_coeff(data,yhat,false);
-        R2.shifted0.relativeToMean0(2,iteIdx) = my_Rsquared_coeff(data,yhat_context,false);
-        R2.shifted0.relativeToMean0(3,iteIdx) = my_Rsquared_coeff(data,yhat_reactive,false);
+        %get R2 of the fit
+        yactualCurr = reshape(squeeze(nanmean(Ymuscles_TR(post1Index,:,:),1)),[],1); %336 x 1, mean of first 5 stirde post adapt
+        yhatCurr = reshape(squeeze(nanmean(Yhat_TR(:,post1Index,:,iteIdx),2)),[],1); 
+        yactualShiftedCurr = reshape(squeeze(nanmean(Ymuscles_TR_shifted(:,post1Index,:),2)),[],1); %336 x 1, mean of first 5 stirde post adapt
+        yhatShiftedCurr = reshape(squeeze(nanmean(Yhat_TR_shifted(:,post1Index,:,iteIdx),2)),[],1); 
 
-        R2.shifted0.relativeToMean1(1,iteIdx) = my_Rsquared_coeff(data,yhat,true);
-        R2.shifted0.relativeToMean1(2,iteIdx) = my_Rsquared_coeff(data,yhat_context,true);
-        R2.shifted0.relativeToMean1(3,iteIdx) = my_Rsquared_coeff(data,yhat_reactive,true);
-
-        data_shifted = nanmean(data_shifted(:,post1Index),2);
-        reconstruction_indv_shifted = nanmean(reconstruction_indv_shifted(:,post1Index),2);
-        yhat_context_shifted = nanmean(yhat_context_shifted(:,post1Index),2);
-        yhat_reactive_shifted = nanmean(yhat_reactive_shifted(:,post1Index),2);
-        
-        R2.shifted1.relativeToMean0(1,iteIdx) = my_Rsquared_coeff(data_shifted,reconstruction_indv_shifted,false);
-        R2.shifted1.relativeToMean0(2,iteIdx) = my_Rsquared_coeff(data_shifted,yhat_context_shifted,false);
-        R2.shifted1.relativeToMean0(3,iteIdx) = my_Rsquared_coeff(data_shifted,yhat_reactive_shifted,false);
-
-        R2.shifted1.relativeToMean1(1,iteIdx) = my_Rsquared_coeff(data_shifted,reconstruction_indv_shifted,true);
-        R2.shifted1.relativeToMean1(2,iteIdx) = my_Rsquared_coeff(data_shifted,yhat_context_shifted,true);
-        R2.shifted1.relativeToMean1(3,iteIdx) = my_Rsquared_coeff(data_shifted,yhat_reactive_shifted,true);
-         
+        for relativeToMean = 0:1 %0 center first, then mean center
+            %not shifted.
+            R2Curr = [];
+            R2Curr(1,iteIdx) = my_Rsquared_coeff(yactualCurr,yhatCurr,relativeToMean); %relative to mean R2 overall
+            RR2Curr(2,iteIdx) = my_Rsquared_coeff(yactualCurr,reshape(squeeze(nanmean(YhatContext_TR(:,post1Index,:,iteIdx),2)),[],1),relativeToMean); %relative to mean R2 context
+            R2Curr(3,iteIdx) = my_Rsquared_coeff(yactualCurr,reshape(squeeze(nanmean(YhatReactive_TR(:,post1Index,:,iteIdx),2)),[],1),relativeToMean); %relative to mean R2 reactive
+            eval(['R2.shifted0.relativeToMean', num2str(relativeToMean) '=R2Curr;']);
+            %shifted
+            R2Curr = [];
+            R2Curr(1,iteIdx) = my_Rsquared_coeff(yactualShiftedCurr,yhatShiftedCurr,relativeToMean); %relative to mean R2 overall
+            RR2Curr(2,iteIdx) = my_Rsquared_coeff(yactualShiftedCurr,reshape(squeeze(nanmean(YhatContext_TR_shifted(:,post1Index,:,iteIdx),2)),[],1),relativeToMean); %relative to mean R2 context
+            R2Curr(3,iteIdx) = my_Rsquared_coeff(yactualShiftedCurr,reshape(squeeze(nanmean(YhatReactive_TR_shifted(:,post1Index,:,iteIdx),2)),[],1),relativeToMean); %relative to mean R2 reactive
+            eval(['R2.shifted1.relativeToMean', num2str(relativeToMean) '=R2Curr;']);
+        end        
     end
     close(ww)
     
@@ -339,13 +328,12 @@ delete(f)
 % %in case previosu error couldn't close wait bar
 % F = findall(0,'type','figure','tag','TMWWaitbar')
 % delete(F)
-R2.labels = {'total','contextual','reactive'};
 
 %% compute R2 of the fit
-iteIdx=n;
+iterationIndex=1;
 for strideToPlot = 1:1370
     yactualCurr = reshape(squeeze(Ymuscles_TR(strideToPlot,:,:)),[],1);%FIXME: this is incorrect, only have the last iteration
-    yhatCurr = reshape(squeeze(Yhat_TR(:,strideToPlot,:,iteIdx)),[],1); 
+    yhatCurr = reshape(squeeze(Yhat_TR(:,strideToPlot,:,iterationIndex)),[],1); 
     R2Example(strideToPlot) = my_Rsquared_coeff(yactualCurr,yhatCurr, true);
 end
 figure(); plot(R2Example); title('R^2 of the last iteration');
@@ -370,7 +358,7 @@ imagesc((reshape(Cmuscles_unit(:,2),12,28)'))
 title('Contextual')
 
 subplot(1,4,3)
-imagesc(squeeze(nanmean(Yhat_TR(:,strideToPlot,:,iteIdx),2))') %avg over strides
+imagesc(squeeze(nanmean(Yhat_TR(:,strideToPlot,:,iterationIndex),2))') %avg over strides
 title('Yhat')
 
 subplot(1,4,4)
@@ -393,7 +381,6 @@ colorbar %Showing the colormap bar
 % compute R2 of the fit
 
 sgtitle(['Last Iteration Fit R^2 = ' num2str(nanmean(R2Example(strideToPlot))) ' Stride=' num2str(strideToPlot)])
-
 
 %% plot the CI of the bootstrapped results.
 postBoostrapAvg = []; %reactive 1st row, context next row
@@ -422,25 +409,13 @@ postBootstrapData.muscleLabels = ytl;
 postBootstrapData.stateLabels = titles;
 % save('GroupBootstrapDataOGPost.mat','postBootstrapData')
 
-%% plot VAF from bootstrap
-saveFigPath = 'X:\Shuqi\NirsAutomaticityStudy\Data\GroupResults\Group22Sub\EMG\V04\Bootstrp2000_';
-subIds = sprintfc('%d',1:n);
-for shifted = 1
-    for relativeToMean = 0:1
-        eval(['dataToPlot = R2.shifted' num2str(shifted) '.relativeToMean' num2str(relativeToMean) ';'])
-        PlotHelper.barPlotWithIndiv(dataToPlot,subIds,{'Total','Context','Reactive'},'VAF',['OGPost VAF Shifted', num2str(shifted) ' RelativeToMean' num2str(relativeToMean)], ...
-            saveFig,[saveFigPath 'VAF_Shifted_', num2str(shifted) '_RelativeToMean_' num2str(relativeToMean) '_boostrap'],[],[],[],false);
-        legend('NumColumns',2)
-    end
-end
-
 %% save the boot strap data.
 if any(contains(groupID,{'BAT'}))
     save([groupID{1}(1:3),'_',num2str(sub(end)),'_iteration_', num2str(iteIdx),'_Individual_muscles_C_constant_Adaptation_per_group'],'dynamics_TR','dynamics_TS','-v7.3')
 % save([groupID{1}(1:3),'_',num2str(24),'_iteration_', num2str(l),'_Individual_muscles_C_constant_Adaptation'],'dynamics_TR','-v7.3')
 % save([groupID,'_',num2str(n_subjects),'_iteration_', num2str(n),'_Individual_muscles'],'dynamics','Yhat','Ymuscles','groupID','-v7.3')
 elseif any(contains(groupID,{'AUF'}))
-    save([groupID{1}(1:3),normalizedGroupData.ID{1}(end-2:end),'_',num2str(sub(end)),'_iteration_', num2str(iteIdx),'_Individual_muscles_C_constant_PostAdaptation_per_group'],'dynamics_TR','R2','-v7.3')
+    save([groupID{1}(1:3),normalizedGroupData.ID{1}(end-2:end),'_',num2str(sub(end)),'_iteration_', num2str(iteIdx),'_Individual_muscles_C_constant_Adaptation_per_group'],'dynamics_TR','-v7.3')
 end
 
 return %stop the script here, below are different plotting options.

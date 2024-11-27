@@ -1,6 +1,6 @@
 %% Free model - Linear regression - Indv Legs
 
-fname='dynamicsData_BATR_subj_12_RemoveBadMuscles0_splits_0.h5';
+fname='dynamicsData_BATR_subj_12_RemoveBadMuscles0_splits_0.h5'; %this is created from preProcessingLinearModel.m
 load BATR_12_IndvLegsC13_ShortPertubations_RemovedBadMuscle_0.mat; 
 
 
